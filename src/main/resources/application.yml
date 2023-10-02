@@ -1,7 +1,7 @@
 spring:
   cloud:
     function:
-      definition: registrationrecordproducer;salesrecordproducer;joinrecords;joinrecordconsumer;invalidrecordconsumer
+      definition: registrationrecordproducer;salesrecordproducer;joinrecords;validateandbranchrecords;joinrecordconsumer;invalidrecordconsumer
     stream:
       kafka:
         streams:
@@ -60,6 +60,26 @@ spring:
               configuration:
                 key.serializer: com.example.dto.converters.OrderKeySerializer
                 value.serializer: com.example.dto.converters.JoinedRecordSerializer
+          joinrecords-out-1:
+            producer:
+              configuration:
+                key.serializer: com.example.dto.converters.OrderKeySerializer
+                value.serializer: com.example.dto.converters.JoinedRecordSerializer
+            validateandbranchrecords-in-0:
+            consumer:
+              configuration:
+                key.deserializer: com.example.dto.converters.OrderKeySerializer
+                value.deserializer: com.example.dto.converters.JoinedRecordDeserializer
+          validateandbranchrecords-out-0:
+            producer:
+              configuration:
+                key.serializer: com.example.dto.converters.OrderKeySerializer
+                value.serializer: com.example.dto.converters.JoinedRecordSerializer
+          validateandbranchrecords-out-1:
+            producer:
+              configuration:
+                key.serializer: com.example.dto.converters.OrderKeySerializer
+                value.serializer: com.example.dto.converters.JoinedRecordSerializer
           joinrecordconsumer-in-0:
             consumer:
               configuration:
@@ -101,6 +121,18 @@ spring:
           destination: TOPIC_Z
           producer:
             useNativeEncoding: true # Enables using the custom serializer
+        validateandbranchrecords-in-0:
+          destination: TOPIC_X
+          consumer:
+            useNativeEncoding: true # Enables using the custom serializer
+        validateandbranchrecords-out-0:
+          destination: TOPIC_C
+          producer:
+            useNativeEncoding: true # Enables using the custom serializer
+        validateandbranchrecords-out-1:
+          destination: TOPIC_Z
+          producer:
+            useNativeEncoding: true # Enables using the custom serializer
         joinrecordconsumer-in-0:
           destination: TOPIC_C
           consumer:
@@ -109,3 +141,7 @@ spring:
           destination: TOPIC_Z
           consumer:
             useNativeDecoding: true # Enables using the custom serializer  
+            
+valid.country.code: "001"
+valid.catalognumber.length: 5
+valid.date.format: yyyy-MM-dd'T'HH:mm:ss.SSS

@@ -7,11 +7,14 @@ import java.time.temporal.ChronoUnit;
 import java.util.Random;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
+import java.util.function.Function;
+import org.apache.kafka.streams.kstream.Predicate;
 import java.util.function.Supplier;
 
 import org.apache.kafka.streams.kstream.JoinWindows;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.StreamJoined;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
@@ -33,6 +36,15 @@ import java.util.logging.Logger;
 @SpringBootApplication
 public class KafkaStreamJoinRecordsApplication {
 	Logger logger = Logger.getLogger(KafkaStreamJoinRecordsApplication.class.getName());
+	
+	@Value("${valid.country.code:001}")
+	private String validCountryCode;
+	@Value("${valid.catalognumber.length:5}")
+	private int validCatalogNumberLength;
+	@Value("${valid.date.format:yyyy-MM-dd'T'HH:mm:ss.SSS}")
+	private String validDateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS";
+	private final SimpleDateFormat validDateFormatter = new SimpleDateFormat(validDateFormat);
+	
 	private final ObjectMapper objectMapper = new ObjectMapper();
 	private static final String[] countries = {"001", "002", "003"};
 	private static final String[] catalog_numbers = {"10001", "20002", "30003", "1001"};
@@ -45,8 +57,7 @@ public class KafkaStreamJoinRecordsApplication {
 	private int jRecordCount = 0;
 	private int invalidRecordCount = 0;
 	private int cRecordCount = 0;
-	private static final String validDateFormat = "yyyy-MM-dd'T'HH:mm:ss.SSS";
-	private static final SimpleDateFormat validDateFormatter = new SimpleDateFormat(validDateFormat);
+	
 	
 	public static void main(String[] args) {
 		SpringApplication.run(KafkaStreamJoinRecordsApplication.class, args);
@@ -77,7 +88,6 @@ public class KafkaStreamJoinRecordsApplication {
 
 			return MessageBuilder.withPayload(regEvent)
 						.setHeader(KafkaHeaders.KEY, oKey)
-						//.setHeader("Audit", audit)
 						.build();
 		};
 	}
@@ -106,16 +116,16 @@ public class KafkaStreamJoinRecordsApplication {
 			
 			return MessageBuilder.withPayload(salEvent)
 					.setHeader(KafkaHeaders.KEY, oKey)
-					//.setHeader("Audit", audit)
 					.build();
 		};
 
 	}
 	
+	@SuppressWarnings("unchecked")
 	@Bean
 	public BiFunction<KStream<OrderKey, RegistrationRecord>, KStream<OrderKey, SalesRecord>,
 		KStream<OrderKey, JoinedRecord>> joinrecords() {
-		//Map<String, KStream<OrderKey, JoinedRecord>>> orderjoin() {
+		//KStream<?, JoinedRecord>[]> joinrecords() {
 		
 		return (input1, input2) -> input1.join(input2, 
 			(value1, value2) -> {
@@ -131,7 +141,8 @@ public class KafkaStreamJoinRecordsApplication {
 				StreamJoined.with(CustomSerdes.OrderKey(), CustomSerdes.RegistrationRecord(), CustomSerdes.SalesRecord()
 				))
 				.filter((key, value) -> {
-					if(value.getCountry().equals("001") && isValidJoinedRecord(value)) {
+					if(value.getCountry().equals(validCountryCode) && isValidJoinedRecord(value)) {
+					//if(value.getCountry().equals("001")) {
 						logger.log(Level.INFO, "filtered jRecordCount -> " + jRecordCount++);
 						return true;
 					}else {
@@ -141,11 +152,19 @@ public class KafkaStreamJoinRecordsApplication {
 				})
 				.peek((key,value) -> logger.log(Level.INFO, "joined -> " + key + ": value: "+ value));
 				//.split()
-				//.branch((key, value) -> (isValidJoinedRecord(value)))
-                //.branch((key, value) -> (!isValidJoinedRecord(value)))
-                //.noDefaultBranch();
+				//.branch((key, value) -> (isValidJoinedRecord(value)), (key, value) -> (!isValidJoinedRecord(value)));
 	}
-	
+	//@Bean
+	@SuppressWarnings("unchecked")
+	public Function<KStream<Object, JoinedRecord>, KStream<?, JoinedRecord>[]> validateandbranchrecords() {
+
+		Predicate<Object, JoinedRecord> validRecord = (k, v) -> isValidJoinedRecord(v);
+		Predicate<Object, JoinedRecord> invalidRecord = (k, v) -> !isValidJoinedRecord(v);
+		
+		return input -> input
+				.branch(validRecord, invalidRecord);
+	}
+		
 	private boolean validateDateFormat(String date) {
 		try {
 			validDateFormatter.parse(date);
@@ -179,7 +198,7 @@ public class KafkaStreamJoinRecordsApplication {
 
 	private boolean isValidJoinedRecord(JoinedRecord jRecord) {
 		return 
-				jRecord.getCatalogNumber().length() == 5
+				jRecord.getCatalogNumber().length() == validCatalogNumberLength
 				&& validateDateFormat(jRecord.getSellingStatusDate())
 				&& validateDateFormat(jRecord.getSalesDate()); 
 
