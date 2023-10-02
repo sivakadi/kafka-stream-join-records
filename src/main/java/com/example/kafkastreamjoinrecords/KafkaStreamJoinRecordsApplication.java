@@ -1,4 +1,4 @@
-package com.example.kafkastreamjoin;
+package com.example.kafkastreamjoinrecords;
 
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
@@ -59,7 +59,7 @@ public class KafkaStreamJoinRecordsApplication {
 			String country = countries[index];
 			String catalogNumber = catalog_numbers[new Random().nextInt(catalog_numbers.length)];
 			Audit audit = new Audit();
-			audit.setEventName("Registration");
+			audit.setEventName("Registration " + country + " " + catalogNumber);
 			audit.setSourceSystem("RGR");
 			RegistrationRecord regEvent = new RegistrationRecord(
 					catalogNumber, true, model[index], "int7218",
@@ -89,7 +89,7 @@ public class KafkaStreamJoinRecordsApplication {
 			String country = countries[index];
 			String catalogNumber = catalog_numbers[new Random().nextInt(catalog_numbers.length)];
 			Audit audit = new Audit();
-			audit.setEventName("Sales Event");
+			audit.setEventName("Sales Event, " + country + " " + catalogNumber);
 			audit.setSourceSystem("SLS");
 			SalesRecord salEvent = new SalesRecord(
 					catalogNumber, order_number[index], "2", dates[new Random().nextInt(dates.length)], country, audit);
