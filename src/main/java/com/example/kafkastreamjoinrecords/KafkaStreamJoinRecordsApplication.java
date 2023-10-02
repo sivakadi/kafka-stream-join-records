@@ -11,7 +11,12 @@ import java.util.function.Function;
 import org.apache.kafka.streams.kstream.Predicate;
 import java.util.function.Supplier;
 
+import org.apache.kafka.clients.consumer.OffsetOutOfRangeException;
+import org.apache.kafka.common.KafkaException;
+import org.apache.kafka.common.errors.SerializationException;
+import org.apache.kafka.common.errors.TimeoutException;
 import org.apache.kafka.streams.kstream.JoinWindows;
+import org.apache.kafka.streams.kstream.UnlimitedWindows;
 import org.apache.kafka.streams.kstream.KStream;
 import org.apache.kafka.streams.kstream.StreamJoined;
 import org.springframework.beans.factory.annotation.Value;
@@ -57,7 +62,6 @@ public class KafkaStreamJoinRecordsApplication {
 	private int jRecordCount = 0;
 	private int invalidRecordCount = 0;
 	private int cRecordCount = 0;
-	
 	
 	public static void main(String[] args) {
 		SpringApplication.run(KafkaStreamJoinRecordsApplication.class, args);
@@ -126,34 +130,49 @@ public class KafkaStreamJoinRecordsApplication {
 	public BiFunction<KStream<OrderKey, RegistrationRecord>, KStream<OrderKey, SalesRecord>,
 		KStream<OrderKey, JoinedRecord>> joinrecords() {
 		//KStream<?, JoinedRecord>[]> joinrecords() {
-		
-		return (input1, input2) -> input1.join(input2, 
-			(value1, value2) -> {
-				JoinedRecord jRecord = null;
-				jRecord = new JoinedRecord(
-						value1.getCatalogNumber(), value1.getIsSelling(), value1.getModel(), value1.getProductId(), 
-						value1.getRegistrationId(), value1.getRegistrationNumber(), value1.getSellingStatusDate(), 
-						value1.getCountry(), value2.getCatalogNumber(), value2.getQuantity(), value2.getSalesDate(), 
-						new Audit[] { value1.getAudit(), value2.getAudit()});
-					return jRecord;
-				},
-				JoinWindows.ofTimeDifferenceWithNoGrace(Duration.of(10, ChronoUnit.SECONDS)),
-				StreamJoined.with(CustomSerdes.OrderKey(), CustomSerdes.RegistrationRecord(), CustomSerdes.SalesRecord()
-				))
-				.filter((key, value) -> {
-					if(value.getCountry().equals(validCountryCode) && isValidJoinedRecord(value)) {
-					//if(value.getCountry().equals("001")) {
-						logger.log(Level.INFO, "filtered jRecordCount -> " + jRecordCount++);
-						return true;
-					}else {
-						logger.log(Level.INFO, "invalid jRecordCount -> " + invalidRecordCount++);
-						return false;
-					}
-				})
-				.peek((key,value) -> logger.log(Level.INFO, "joined -> " + key + ": value: "+ value));
-				//.split()
-				//.branch((key, value) -> (isValidJoinedRecord(value)), (key, value) -> (!isValidJoinedRecord(value)));
+		try {
+			return (input1, input2) -> input1.join(input2, 
+				(value1, value2) -> {
+					JoinedRecord jRecord = null;
+					jRecord = new JoinedRecord(
+							value1.getCatalogNumber(), value1.getIsSelling(), value1.getModel(), value1.getProductId(), 
+							value1.getRegistrationId(), value1.getRegistrationNumber(), value1.getSellingStatusDate(), 
+							value1.getCountry(), value2.getCatalogNumber(), value2.getQuantity(), value2.getSalesDate(), 
+							new Audit[] { value1.getAudit(), value2.getAudit()});
+						return jRecord;
+					},
+					JoinWindows.ofTimeDifferenceAndGrace(Duration.of(10, ChronoUnit.SECONDS), Duration.of(10, ChronoUnit.MILLIS)),
+					StreamJoined.with(CustomSerdes.OrderKey(), CustomSerdes.RegistrationRecord(), CustomSerdes.SalesRecord()
+					))
+					.filter((key, value) -> {
+						if(value.getCountry().equals(validCountryCode) && isValidJoinedRecord(value)) {
+							logger.log(Level.INFO, "filtered jRecordCount -> " + jRecordCount++);
+							return true;
+						}else {
+							logger.log(Level.INFO, "invalid jRecordCount -> " + invalidRecordCount++);
+							return false;
+						}
+					})
+					.peek((key,value) -> logger.log(Level.INFO, "joined -> " + key + ": value: "+ value));
+					//.split()
+					//.branch((key, value) -> (isValidJoinedRecord(value)), (key, value) -> (!isValidJoinedRecord(value)));
+		} catch (OffsetOutOfRangeException e) {
+		    //TODO handle offset out of range exception by sending the messages to a DLQ
+			logger.log(Level.SEVERE, "out of range error occurred while consuming messages from Kafka");
+		    System.out.println("Offset out of range error occurred while consuming messages from Kafka");
+		} catch (SerializationException e) {
+		    //TODO handle deserialization exception by sending the messages to a DLQ
+			logger.log(Level.SEVERE, "Serialization error occurred while consuming message from Kafka");
+		} catch (TimeoutException e) {
+		    //TODO handle timeout exception by sending the messages to a DLQ
+			logger.log(Level.SEVERE, "Timeout occurred while consuming message from Kafka");
+		} catch (KafkaException e) {
+		    //TODO handle Kafka exception by sending the messages to a DLQ
+			logger.log(Level.SEVERE, "Error occurred while consuming messages from Kafka:{} " , e.getMessage());
+		} 
+		return null;
 	}
+	
 	//@Bean
 	@SuppressWarnings("unchecked")
 	public Function<KStream<Object, JoinedRecord>, KStream<?, JoinedRecord>[]> validateandbranchrecords() {
