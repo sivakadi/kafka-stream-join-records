@@ -1,0 +1,111 @@
+spring:
+  cloud:
+    function:
+      definition: registrationrecordproducer;salesrecordproducer;joinrecords;joinrecordconsumer;invalidrecordconsumer
+    stream:
+      kafka:
+        streams:
+          binder:
+            applicationId: kafka-stream-join-application
+            jaas:
+              loginModule: org.apache.kafka.common.security.plain.PlainLoginModule
+              options:
+                username: K7TLV3BOJPMQXHBT
+                password: Mh3jaNTCadezluLdwnMKnN2//PvLsD77HS/ju9kpqn/EsUoZKkWHK37OqtHRB6X7
+            configuration:
+              commit:
+                interval:
+                  ms: 100
+              security:
+                protocol: SASL_SSL
+              sasl:
+                mechanism: PLAIN
+        binder:
+          brokers: pkc-lzvrd.us-west4.gcp.confluent.cloud:9092
+          #brokers: localhost:9092 
+          #The following is for only to unit test consumer not needed for Kafka Streams apps
+          jaas:
+            loginModule: org.apache.kafka.common.security.plain.PlainLoginModule
+            options:
+              username: K7TLV3BOJPMQXHBT
+              password: Mh3jaNTCadezluLdwnMKnN2//PvLsD77HS/ju9kpqn/EsUoZKkWHK37OqtHRB6X7
+          configuration:
+            security:
+              protocol: SASL_SSL
+            sasl:
+              mechanism: PLAIN
+        bindings:
+          registrationrecordproducer-out-0:
+            producer:
+              configuration:
+                key.serializer: com.example.dto.converters.OrderKeySerializer
+                value.serializer: com.example.dto.converters.RegistrationRecordSerializer
+          salesrecordproducer-out-0:
+            producer:
+              configuration:
+                key.serializer: com.example.dto.converters.OrderKeySerializer
+                value.serializer: com.example.dto.converters.SalesRecordSerializer
+          joinrecords-in-0:
+            consumer:
+              configuration:
+                key.desserializer: com.example.dto.converters.OrderKeySerializer
+                value.deserializer: com.example.dto.converters.RegistrationRecordDeserializer
+          joinrecords-in-1:
+            consumer:
+              configuration:
+                key.deserializer: com.example.dto.converters.OrderKeySerializer
+                value.deserializer: com.example.dto.converters.SalesRecordDeserializer
+          joinrecords-out-0:
+            producer:
+              configuration:
+                key.serializer: com.example.dto.converters.OrderKeySerializer
+                value.serializer: com.example.dto.converters.JoinedRecordSerializer
+          joinrecordconsumer-in-0:
+            consumer:
+              configuration:
+                key.desserializer: com.example.dto.converters.OrderKeySerializer
+                value.deserializer: com.example.dto.converters.JoinedRecordDeserializer
+          invalidrecordconsumer-in-0:
+            consumer:
+              configuration:
+                key.desserializer: com.example.dto.converters.OrderKeySerializer
+                value.deserializer: com.example.dto.converters.JoinedRecordDeserializer
+          binder:
+            configuration:
+              commit.interval.ms: 2000 # to allow the stream to send the message as soon as possible and not wait
+
+#          binder:
+#            brokers: localhost:9092
+      bindings:
+        registrationrecordproducer-out-0:
+          destination: TOPIC_A
+          producer:
+            useNativeEncoding: true # Enables using the custom serializer
+        salesrecordproducer-out-0:
+          destination: TOPIC_B
+          producer:
+            useNativeEncoding: true # Enables using the custom serializer
+        joinrecords-in-0:
+          destination: TOPIC_A
+          consumer:
+            useNativeDecoding: true # Enables using the custom serializer
+        joinrecords-in-1:
+          destination: TOPIC_B
+          consumer:
+            useNativeDecoding: true # Enables using the custom serializer
+        joinrecords-out-0:
+          destination: TOPIC_C
+          producer:
+            useNativeEncoding: true # Enables using the custom serializer
+        joinrecords-out-1:
+          destination: TOPIC_Z
+          producer:
+            useNativeEncoding: true # Enables using the custom serializer
+        joinrecordconsumer-in-0:
+          destination: TOPIC_C
+          consumer:
+            useNativeDecoding: true # Enables using the custom serializer
+        invalidrecordconsumer-in-0:
+          destination: TOPIC_Z
+          consumer:
+            useNativeDecoding: true # Enables using the custom serializer  
